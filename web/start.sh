@@ -34,15 +34,26 @@ fi
 cd /app
 PORT=3001 HOSTNAME=127.0.0.1 node apps/web/server.js &
 web=$!
+caddy run --config /opt/railway/Caddyfile --adapter caddyfile &
+proxy=$!
+worker=""; bot=""
+
+stop() { kill -TERM $web $proxy $worker $bot 2>/dev/null; }
+trap 'stop; wait; exit 0' TERM INT
+
+# The worker and the bot read tables the api's migrations create, so start them once the
+# api answers (up to 5 minutes; a sibling's private DNS name can take a minute to resolve).
+i=0
+until wget -q -O /dev/null "$SERVICE_URL_API/" 2>/dev/null; do
+  i=$((i+1))
+  if [ "$i" -ge 150 ]; then echo "[railway] api not answering after 5 minutes; starting the worker anyway" >&2; break; fi
+  kill -0 "$web" 2>/dev/null && kill -0 "$proxy" 2>/dev/null || break
+  sleep 2
+done
 (cd /worker && exec bun --smol run apps/worker/src/index.ts) &
 worker=$!
 (cd /bot && exec bun --smol run apps/bot/src/index.ts) &
 bot=$!
-caddy run --config /opt/railway/Caddyfile --adapter caddyfile &
-proxy=$!
-
-stop() { kill -TERM "$web" "$worker" "$bot" "$proxy" 2>/dev/null; }
-trap 'stop; wait; exit 0' TERM INT
 
 # BusyBox `wait -n` doesn't return on the first child exit, so poll.
 while kill -0 "$web" 2>/dev/null && kill -0 "$worker" 2>/dev/null && kill -0 "$bot" 2>/dev/null && kill -0 "$proxy" 2>/dev/null; do
