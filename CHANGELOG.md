@@ -15,3 +15,5 @@ notice for every merge to `main`; read the entry before you apply it.
   - `ghcr.io/croffasia/itsaplan-bot:1.12.0@sha256:a3f5a1518a5194ccbd37ca014b2fd00e6c76a120582d4feec554829fa883d70a`
   - `ghcr.io/croffasia/itsaplan-worker:1.12.0@sha256:5ae5d1123f3dc9f366b1516d110a043f9caa60fcb043a54abc9f99ab0be3d200`
   - `caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0`
+- First boot creates the admin from `ADMIN_EMAIL` and a generated `ADMIN_PASSWORD` and makes registration
+  invite-only; if that fails the api stops and Railway retries, so sign-up is never left open.

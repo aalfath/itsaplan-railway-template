@@ -41,7 +41,16 @@ trap 'kill -TERM "$api" 2>/dev/null; wait "$api"; exit 0' TERM INT
 # from the generated ADMIN_PASSWORD instead of leaving sign-up open to the first visitor.
 users=$(psql "$DATABASE_URL" -qtAc 'select count(*) from "user"' 2>/dev/null || echo "?")
 if [ "$users" = "0" ]; then
-  bun /opt/railway/bootstrap-admin.ts || echo "[railway] admin bootstrap failed; see above" >&2
+  if ! bun /opt/railway/bootstrap-admin.ts; then
+    # Never leave sign-up open to the first visitor: stop, and let Railway restart and retry.
+    echo "[railway] admin bootstrap failed; stopping so Railway retries" >&2
+    kill -TERM "$api" 2>/dev/null; wait "$api"
+    exit 1
+  fi
+elif [ "$users" != "?" ]; then
+  # An instance with accounts but no saved auth settings (e.g. a bootstrap cut short)
+  # is made invite-only; a setting the admin saved in god mode is left alone.
+  psql "$DATABASE_URL" -qtAc "insert into app_setting (key, value) values ('auth', '{\"registration\":\"invite\"}'::jsonb) on conflict (key) do nothing" >/dev/null 2>&1 || true
 fi
 
 wait "$api"
