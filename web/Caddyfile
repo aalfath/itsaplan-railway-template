@@ -1,0 +1,34 @@
+{
+	admin off
+	auto_https off
+	persist_config off
+	log default {
+		level WARN
+	}
+}
+
+:{$PORT} {
+	# The api lives under /api on this host (upstream's "path on the web's host" layout),
+	# so the session cookie stays on one host: *.up.railway.app is on the Public Suffix
+	# List and a cookie cannot be shared between two Railway domains.
+	handle_path /api/* {
+		reverse_proxy {$API_UPSTREAM} {
+			header_up Host {upstream_hostport}
+			header_up X-Forwarded-Host {host}
+			header_up X-Forwarded-Proto https
+		}
+	}
+	# OAuth discovery documents for MCP clients go to the api as well.
+	@discovery path /.well-known/oauth-authorization-server* /.well-known/oauth-protected-resource* /.well-known/openid-configuration*
+	handle @discovery {
+		reverse_proxy {$API_UPSTREAM} {
+			header_up Host {upstream_hostport}
+			header_up X-Forwarded-Proto https
+		}
+	}
+	handle {
+		reverse_proxy 127.0.0.1:3001 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+}
